@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zeefdruk Halftoon Raster Simulatie</title>
+    <!-- Tailwind CSS laden voor snelle styling en responsiviteit -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles voor de app */
+        :root {
+            --primary-color: #000;
+            --secondary-color: #f7f7f7;
+            --accent-color: #2563eb;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--secondary-color);
+            color: var(--primary-color);
+        }
+
+        .container-card {
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            transition: box-shadow 0.3s ease;
+        }
+
+        .slider-label {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .slider-value {
+            color: var(--accent-color);
+            font-size: 0.875rem;
+        }
+
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 8px;
+            background: #d1d5db;
+            border-radius: 4px;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+
+        input[type=range]:hover {
+            opacity: 1;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--accent-color);
+            cursor: pointer;
+            border: 3px solid white;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+        }
+
+        .canvas-container {
+            display: grid;
+            gap: 1rem;
+            grid-template-columns: 1fr;
+        }
+
+        @media (min-width: 768px) {
+            .canvas-container {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 min-h-screen">
+
+    <div class="max-w-6xl mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800">Zeefdruk Halftoon Raster Simulatie</h1>
+            <p class="text-gray-500">Focus op de Ordered Dithering methode, ideaal voor het creëren van zeefdrukfilms.</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <!-- Besturingselementen Kolom -->
+            <div class="lg:col-span-1 container-card h-fit sticky top-4">
+                <h2 class="text-xl font-semibold mb-4 border-b pb-2 text-gray-700">Besturingselementen</h2>
+
+                <!-- Bestand invoer -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2" for="imageInput">
+                        1. Selecteer Afbeelding
+                    </label>
+                    <input type="file" id="imageInput" accept="image/*" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100 cursor-pointer">
+                    <p id="error-message" class="text-red-500 text-xs mt-1 hidden">Afbeelding kon niet worden geladen.</p>
+                </div>
+
+                <hr class="my-4">
+
+                <!-- Halftoon parameters -->
+                <div>
+                    <h3 class="text-lg font-medium mb-3 text-gray-700">2. Halftoon Parameters (Ordered Dithering)</h3>
+                    <!-- Frequency (LPI) -->
+                    <div class="mb-5">
+                        <label class="slider-label" for="frequencySlider">
+                            <span>Rasterfrequentie (LPI)</span>
+                            <span id="frequencyValue" class="slider-value">20</span>
+                        </label>
+                        <input type="range" id="frequencySlider" min="5" max="50" value="20" step="1">
+                        <p class="text-xs text-gray-400 mt-1">Lijnen per inch (lpi). Hoger = fijnere stippen.</p>
+                    </div>
+
+                    <!-- Angle (Hoek) -->
+                    <div class="mb-5">
+                        <label class="slider-label" for="angleSlider">
+                            <span>Rasterhoek (Graden)</span>
+                            <span id="angleValue" class="slider-value">45</span>
+                        </label>
+                        <input type="range" id="angleSlider" min="0" max="180" value="45" step="1">
+                        <p class="text-xs text-gray-400 mt-1">Hoek van het stippenpatroon. 45° is standaard.</p>
+                    </div>
+
+                    <!-- Dot Shape (Vorm) -->
+                    <div class="mb-5">
+                        <label class="block text-sm font-medium text-gray-700 mb-2" for="dotShape">
+                            Rasterpunt Vorm
+                        </label>
+                        <select id="dotShape" class="w-full p-2 border border-gray-300 rounded-md bg-gray-50 hover:bg-white transition duration-150 cursor-pointer">
+                            <option value="ellipse" selected>Clustered Dot (Ellips/Rond)</option>
+                            <option value="square">Checkerboard (Vierkant)</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <h3 class="text-lg font-medium mb-3 text-gray-700 border-t pt-3 mt-3">3. Tonale Aanpassingen</h3>
+
+                <!-- Histogram Equalization Checkbox -->
+                <div class="mb-5">
+                    <label class="flex items-center space-x-2 text-sm font-medium text-gray-700 cursor-pointer">
+                        <input type="checkbox" id="equalizeCheckbox" class="form-checkbox h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                        <span>Histogram Equalization Toepassen</span>
+                    </label>
+                    <p class="text-xs text-gray-400 mt-1">Verbetert automatisch het contrast door de helderheidswaarden te spreiden.</p>
+                </div>
+                
+                <!-- Gamma Correction -->
+                <div class="mb-5">
+                    <label class="slider-label" for="gammaSlider">
+                        <span>Gamma Correctie (Tonaliteit)</span>
+                        <span id="gammaValue" class="slider-value">1.00</span>
+                    </label>
+                    <input type="range" id="gammaSlider" min="0.5" max="2.5" value="1.0" step="0.05">
+                </div>
+
+                <!-- Midpoint/Brightness Shift -->
+                <div class="mb-5">
+                    <label class="slider-label" for="midpointSlider">
+                        <span>Midpoint Shift (Helderheid)</span>
+                        <span id="midpointValue" class="slider-value">0.00</span>
+                    </label>
+                    <input type="range" id="midpointSlider" min="-0.3" max="0.3" value="0.0" step="0.05">
+                </div>
+
+                <!-- Contrast (Levels/Curves) -->
+                <div class="mb-5">
+                    <label class="slider-label" for="contrastSlider">
+                        <span>Contrast Factor</span>
+                        <span id="contrastValue" class="slider-value">1.5</span>
+                    </label>
+                    <input type="range" id="contrastSlider" min="0.5" max="3.0" value="1.5" step="0.1">
+                </div>
+
+                <!-- Knop voor downloaden -->
+                <button id="downloadButton" class="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-2 rounded-lg transition duration-200 disabled:opacity-50 mt-4" disabled>
+                    Raster Afbeelding Downloaden
+                </button>
+            </div>
+
+            <!-- Canvas Weergave Kolom -->
+            <div class="lg:col-span-2">
+                <div class="canvas-container">
+                    
+                    <!-- Originele Afbeelding Canvas -->
+                    <div class="container-card text-center">
+                        <h3 class="text-lg font-semibold mb-2">Origineel (Aangepaste Grijswaarden)</h3>
+                        <canvas id="originalCanvas" class="w-full border border-gray-300 rounded-lg shadow-inner"></canvas>
+                        <p class="text-sm text-gray-400 mt-2">De afbeelding na Tonale Correcties.</p>
+                    </div>
+
+                    <!-- Gerasterde Afbeelding Canvas -->
+                    <div class="container-card text-center">
+                        <h3 class="text-lg font-semibold mb-2">Gerasterd Resultaat (Halftoon)</h3>
+                        <canvas id="halftoneCanvas" class="w-full border-4 border-black rounded-lg shadow-2xl"></canvas>
+                        <p class="text-sm text-gray-400 mt-2">De uiteindelijke bitmap (1-bit) voor de zeefdrukfilm.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Globale variabelen
+        const imageInput = document.getElementById('imageInput');
+        const originalCanvas = document.getElementById('originalCanvas');
+        const halftoneCanvas = document.getElementById('halftoneCanvas');
+        const downloadButton = document.getElementById('downloadButton');
+        const errorMessage = document.getElementById('error-message');
+        
+        const dotShapeSelect = document.getElementById('dotShape');
+        const equalizeCheckbox = document.getElementById('equalizeCheckbox'); // Nieuwe checkbox
+
+        const sliders = {
+            gamma: document.getElementById('gammaSlider'),
+            frequency: document.getElementById('frequencySlider'),
+            angle: document.getElementById('angleSlider'),
+            contrast: document.getElementById('contrastSlider'),
+            midpoint: document.getElementById('midpointSlider'), 
+        };
+
+        const values = {
+            gamma: document.getElementById('gammaValue'),
+            frequency: document.getElementById('frequencyValue'),
+            angle: document.getElementById('angleValue'),
+            contrast: document.getElementById('contrastValue'),
+            midpoint: document.getElementById('midpointValue'), 
+        };
+
+        let currentImage = null; 
+        let rendering = false; 
+
+        // Matrices voor Ordered Dithering (Halftoon)
+        // Standaard 4x4 Clustered Dot Matrix (simuleert ronde/elliptische stipgroei)
+        const ELLIPSE_MATRIX = [
+            [ 13, 11, 7, 15 ],
+            [ 9, 3, 1, 5 ],
+            [ 10, 2, 0, 4 ],
+            [ 14, 12, 8, 6 ]
+        ].map(row => row.map(val => (val / 15.0) * 255.0)); // Schaal van 0-15 naar 0-255
+
+        const SQUARE_MATRIX = [
+            [ 0, 8, 2, 10 ],
+            [ 12, 4, 14, 6 ],
+            [ 3, 11, 1, 9 ],
+            [ 15, 7, 13, 5 ]
+        ].map(row => row.map(val => (val / 15.0) * 255.0));
+
+
+        // --- Hulpfuncties ---
+
+        /**
+         * Past Histogram Equalization toe op de grijswaarde pixeldata.
+         * Dit is een algemeen contrastverbeteringsalgoritme.
+         * Werkt door de Cumulatieve Distributiefunctie (CDF) te berekenen en toe te passen.
+         */
+        function applyHistogramEqualization(imageData) {
+            const data = imageData.data;
+            const totalPixels = data.length / 4;
+            
+            // 1. Bereken Histogram (frequentie van elke intensiteit 0-255)
+            const histogram = new Array(256).fill(0);
+            for (let i = 0; i < data.length; i += 4) {
+                // Gebruik de R-waarde, die al de grijswaarde bevat
+                const intensity = Math.round(data[i]); 
+                histogram[intensity]++;
+            }
+
+            // 2. Bereken Cumulatieve Distributiefunctie (CDF)
+            const cdf = new Array(256).fill(0);
+            let cdf_min = 0;
+            
+            cdf[0] = histogram[0];
+            for (let i = 1; i < 256; i++) {
+                cdf[i] = cdf[i - 1] + histogram[i];
+            }
+            
+            // Zoek de eerste niet-nul waarde in de CDF (minimale cdf, negeert puur zwarte pixels)
+            for (let i = 0; i < 256; i++) {
+                if (cdf[i] > 0) {
+                    cdf_min = cdf[i];
+                    break;
+                }
+            }
+
+            // 3. Creëer de Lookup Table (LUT)
+            const lut = new Array(256);
+            const denominator = totalPixels - cdf_min;
+
+            if (denominator === 0) {
+                // Voorkom delen door nul bij lege of uniforme afbeeldingen
+                for (let i = 0; i < 256; i++) {
+                    lut[i] = i; 
+                }
+            } else {
+                for (let i = 0; i < 256; i++) {
+                    // Formule voor Histogram Equalization
+                    lut[i] = Math.round(((cdf[i] - cdf_min) / denominator) * 255);
+                    lut[i] = Math.max(0, Math.min(255, lut[i]));
+                }
+            }
+
+            // 4. Pas de LUT toe op de afbeelding
+            for (let i = 0; i < data.length; i += 4) {
+                const oldIntensity = Math.round(data[i]);
+                const newIntensity = lut[oldIntensity];
+                
+                data[i] = newIntensity;
+                data[i + 1] = newIntensity;
+                data[i + 2] = newIntensity;
+            }
+
+            return imageData;
+        }
+
+        /**
+         * Past Gamma, Contrast en de middentoon (brightness shift) van de pixeldata aan.
+         */
+        function adjustContrast(imageData, contrastFactor, midpointShift, gamma) {
+            const data = imageData.data;
+            const contrast = contrastFactor;
+            const shift = midpointShift; 
+
+            for (let i = 0; i < data.length; i += 4) {
+                let r = data[i] / 255.0; // Grijswaarde als 0.0 - 1.0
+                
+                // 1. Apply Gamma Correction
+                r = Math.pow(r, gamma);
+                
+                // 2. Apply Midpoint Shift
+                r = r + shift; 
+
+                // 3. Apply Contrast
+                r = (r - 0.5) * contrast + 0.5;
+
+                // Clamp de waarde tussen 0 en 1
+                r = Math.min(1.0, Math.max(0.0, r)); 
+
+                const new_value = Math.round(r * 255);
+                data[i] = new_value;
+                data[i + 1] = new_value;
+                data[i + 2] = new_value;
+            }
+            return imageData;
+        }
+
+        /**
+         * Converteert de pixeldata naar grijswaarden.
+         */
+        function convertToGrayscale(imageData) {
+            const data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                const avg = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+                data[i] = avg;     // R
+                data[i + 1] = avg; // G
+                data[i + 2] = avg; // B
+            }
+            return imageData;
+        }
+
+        /**
+         * Past Ordered Dithering (Halftone Screen) toe.
+         */
+        function applyHalftone(ctx, originalImageData, lpi, angle, width, height, dotShape) {
+            const originalData = originalImageData.data;
+            const outputImageData = ctx.createImageData(width, height);
+            const outputData = outputImageData.data;
+
+            halftoneCanvas.width = width;
+            halftoneCanvas.height = height;
+
+            // Dot cell size in pixels (lpi is Lines Per Inch)
+            // Gebruik 72 DPI als standaard voor schermweergave
+            const screenDPI = 72; 
+            const pixelSize = screenDPI / lpi; 
+            const cellWidth = Math.max(1, Math.round(pixelSize)); 
+            const cellHeight = Math.max(1, Math.round(pixelSize));
+
+            const matrix = dotShape === 'square' ? SQUARE_MATRIX : ELLIPSE_MATRIX;
+            const matrixSize = matrix.length;
+
+            const rad = angle * Math.PI / 180;
+            const cosA = Math.cos(rad);
+            const sinA = Math.sin(rad);
+
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const originalIndex = (y * width + x) * 4;
+                    const r = originalData[originalIndex]; // Grijswaarde (0-255)
+
+                    // Rotatie Coördinaten
+                    const centerX = width / 2;
+                    const centerY = height / 2;
+                    const relX = x - centerX;
+                    const relY = y - centerY;
+                    const rotX = relX * cosA - relY * sinA;
+                    const rotY = relX * sinA + relY * cosA;
+                    const sampleX = Math.round(rotX + centerX);
+                    const sampleY = Math.round(rotY + centerY);
+
+                    // Matrix Index bepaling
+                    const i_base = Math.floor(sampleX / cellWidth);
+                    const j_base = Math.floor(sampleY / cellHeight);
+
+                    const i = (i_base % matrixSize + matrixSize) % matrixSize;
+                    const j = (j_base % matrixSize + matrixSize) % matrixSize;
+                    
+                    const threshold = matrix[j][i];
+
+                    let value = 0; 
+                    // Vergelijking met de drempelwaarde van de matrix
+                    if (r >= threshold) { 
+                        value = 255; // Wit (geen inkt)
+                    }
+                    
+                    const outputIndex = (y * width + x) * 4;
+                    outputData[outputIndex] = value;
+                    outputData[outputIndex + 1] = value;
+                    outputData[outputIndex + 2] = value;
+                    outputData[outputIndex + 3] = 255; 
+                }
+            }
+
+            ctx.putImageData(outputImageData, 0, 0);
+        }
+
+        // --- Hoofd Rendering Functie ---
+
+        /**
+         * Voert de volledige conversie- en rasterstappen uit.
+         */
+        async function renderHalftone() {
+            if (!currentImage || rendering) return;
+
+            rendering = true;
+            downloadButton.disabled = true;
+
+            const width = currentImage.width;
+            const height = currentImage.height;
+
+            // 1. Setup Canvas
+            originalCanvas.width = width;
+            originalCanvas.height = height;
+            halftoneCanvas.width = width;
+            halftoneCanvas.height = height;
+
+            const originalCtx = originalCanvas.getContext('2d');
+            const halftoneCtx = halftoneCanvas.getContext('2d');
+
+            // 2. Initial Drawing
+            originalCtx.clearRect(0, 0, width, height);
+            originalCtx.drawImage(currentImage, 0, 0, width, height);
+            let imageData = originalCtx.getImageData(0, 0, width, height);
+
+            // 3. Grijswaarden
+            imageData = convertToGrayscale(imageData);
+            
+            // 3.5. Optionele Histogram Equalization
+            const equalize = equalizeCheckbox.checked;
+            if (equalize) {
+                imageData = applyHistogramEqualization(imageData);
+            }
+
+            // 4. Tonale aanpassingen (Gamma, Contrast, Midpoint)
+            const gamma = parseFloat(sliders.gamma.value);
+            const contrastFactor = parseFloat(sliders.contrast.value);
+            const midpointShift = parseFloat(sliders.midpoint.value); 
+            
+            // Pas de contrastcorrecties toe na de optionele Histogram Equalization
+            imageData = adjustContrast(imageData, contrastFactor, midpointShift, gamma);
+
+            // Toon het grijswaarden/contrast resultaat
+            originalCtx.putImageData(imageData, 0, 0);
+
+            // 5. Halftoon Verwerking
+            const lpi = parseInt(sliders.frequency.value);
+            const angle = parseInt(sliders.angle.value);
+            const dotShape = dotShapeSelect.value; 
+            const processingData = originalCtx.getImageData(0, 0, width, height);
+
+            applyHalftone(halftoneCtx, processingData, lpi, angle, width, height, dotShape);
+
+            rendering = false;
+            downloadButton.disabled = false;
+        }
+
+
+        // --- Event Handlers & Init ---
+
+        /**
+         * Verwerkt het uploaden van de afbeelding.
+         */
+        imageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    currentImage = img;
+                    errorMessage.classList.add('hidden');
+                    renderHalftone();
+                };
+                img.onerror = () => {
+                    errorMessage.textContent = 'Fout bij het laden van de afbeelding. Probeer een ander bestand.';
+                    errorMessage.classList.remove('hidden');
+                    currentImage = null;
+                    downloadButton.disabled = true;
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // Koppel de sliders en select aan de rendering functie en de waarde-updates
+        Object.keys(sliders).forEach(key => {
+            sliders[key].addEventListener('input', () => {
+                // Formatteer de waardes netjes
+                if (key === 'midpoint' || key === 'gamma' || key === 'contrast') {
+                    values[key].textContent = parseFloat(sliders[key].value).toFixed(2);
+                } else {
+                    values[key].textContent = sliders[key].value;
+                }
+                if (currentImage) {
+                    requestAnimationFrame(renderHalftone);
+                }
+            });
+        });
+
+        // Event listener voor de Dot Shape select en de nieuwe Equalization checkbox
+        dotShapeSelect.addEventListener('change', () => {
+             if (currentImage) {
+                requestAnimationFrame(renderHalftone);
+            }
+        });
+
+        equalizeCheckbox.addEventListener('change', () => {
+            if (currentImage) {
+                requestAnimationFrame(renderHalftone);
+            }
+        });
+
+
+        /**
+         * Download de gerasterde afbeelding als een PNG.
+         */
+        downloadButton.addEventListener('click', () => {
+            if (halftoneCanvas.width === 0 || halftoneCanvas.height === 0 || downloadButton.disabled) return;
+
+            const dataURL = halftoneCanvas.toDataURL('image/png');
+            
+            const a = document.createElement('a');
+            a.href = dataURL;
+            // Bestandsnaam aanpassen met LPI en hoek
+            let filename = `halftoon_raster_${sliders.frequency.value}lpi_${sliders.angle.value}deg.png`;
+
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        });
+
+        // Initiele setup
+        document.addEventListener('DOMContentLoaded', () => {
+            // Zorg ervoor dat de canvas leeg is bij de start
+            originalCanvas.width = 300;
+            originalCanvas.height = 300;
+            halftoneCanvas.width = 300;
+            halftoneCanvas.height = 300;
+            originalCanvas.getContext('2d').fillStyle = '#e5e7eb'; 
+            originalCanvas.getContext('2d').fillRect(0, 0, 300, 300);
+            halftoneCanvas.getContext('2d').fillStyle = '#e5e7eb'; 
+            halftoneCanvas.getContext('2d').fillRect(0, 0, 300, 300);
+        });
+
+    </script>
+</body>
+</html>
