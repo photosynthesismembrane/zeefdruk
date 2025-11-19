@@ -135,7 +135,7 @@
                             Rasterpunt Vorm
                         </label>
                         <select id="dotShape" class="w-full p-2 border border-gray-300 rounded-md bg-gray-50 hover:bg-white transition duration-150 cursor-pointer">
-                            <option value="ellipse" selected>Clustered Dot (Ellips/Rond)</option>
+                            <option value="ellipse" selected>Clustered Dot (Rond/Ellips)</option>
                             <option value="square">Checkerboard (Vierkant)</option>
                         </select>
                     </div>
@@ -238,28 +238,19 @@
         let rendering = false; 
 
         // Matrices voor Ordered Dithering (Halftoon)
-        // Standaard 4x4 Clustered Dot Matrix (simuleert ronde/elliptische stipgroei)
-        const ELLIPSE_MATRIX = [
-            [ 13, 11, 7, 15 ],
-            [ 9, 3, 1, 5 ],
-            [ 10, 2, 0, 4 ],
-            [ 14, 12, 8, 6 ]
-        ].map(row => row.map(val => (val / 15.0) * 255.0)); // Schaal van 0-15 naar 0-255
-
+        // Standaard 4x4 Checkerboard Matrix (voor de 'square' optie)
         const SQUARE_MATRIX = [
             [ 0, 8, 2, 10 ],
             [ 12, 4, 14, 6 ],
             [ 3, 11, 1, 9 ],
             [ 15, 7, 13, 5 ]
-        ].map(row => row.map(val => (val / 15.0) * 255.0));
+        ].map(row => row.map(val => (val / 15.0) * 255.0)); // Schaal van 0-15 naar 0-255
 
 
         // --- Hulpfuncties ---
 
         /**
          * Past Histogram Equalization toe op de grijswaarde pixeldata.
-         * Dit is een algemeen contrastverbeteringsalgoritme.
-         * Werkt door de Cumulatieve Distributiefunctie (CDF) te berekenen en toe te passen.
          */
         function applyHistogramEqualization(imageData) {
             const data = imageData.data;
@@ -382,9 +373,11 @@
             const pixelSize = screenDPI / lpi; 
             const cellWidth = Math.max(1, Math.round(pixelSize)); 
             const cellHeight = Math.max(1, Math.round(pixelSize));
+            
+            const isClusteredDot = dotShape === 'ellipse';
 
-            const matrix = dotShape === 'square' ? SQUARE_MATRIX : ELLIPSE_MATRIX;
-            const matrixSize = matrix.length;
+            const matrix = dotShape === 'square' ? SQUARE_MATRIX : null;
+            const matrixSize = matrix ? matrix.length : 0;
 
             const rad = angle * Math.PI / 180;
             const cosA = Math.cos(rad);
@@ -395,7 +388,12 @@
                     const originalIndex = (y * width + x) * 4;
                     const r = originalData[originalIndex]; // Grijswaarde (0-255)
 
-                    // Rotatie Coördinaten
+                    // INVERSIE VOOR POSITIEVE FILM:
+                    // De rasterpunt moet groter worden naarmate de afbeelding donkerder wordt (lagere 'r').
+                    // Daarom inverteren we de grijswaarde: 0 (donker) wordt 255 (hoogste inktpotentieel).
+                    const r_inverted = 255 - r;
+
+                    // Rotatie Coördinaten - Belangrijk voor het creëren van de hoek
                     const centerX = width / 2;
                     const centerY = height / 2;
                     const relX = x - centerX;
@@ -404,22 +402,59 @@
                     const rotY = relX * sinA + relY * cosA;
                     const sampleX = Math.round(rotX + centerX);
                     const sampleY = Math.round(rotY + centerY);
-
-                    // Matrix Index bepaling
-                    const i_base = Math.floor(sampleX / cellWidth);
-                    const j_base = Math.floor(sampleY / cellHeight);
-
-                    const i = (i_base % matrixSize + matrixSize) % matrixSize;
-                    const j = (j_base % matrixSize + matrixSize) % matrixSize;
                     
-                    const threshold = matrix[j][i];
+                    let threshold = 0; 
+
+                    if (isClusteredDot) {
+                        // Dynamische berekening voor een ronde dot (simuleert 'ellipse' in Photoshop)
+                        
+                        // 1. Bepaal relatieve coördinaten binnen de rastercel
+                        const relCellX = (sampleX % cellWidth + cellWidth) % cellWidth;
+                        const relCellY = (sampleY % cellHeight + cellHeight) % cellHeight;
+
+                        // 2. Centrum van de cel
+                        const cellCenterX = cellWidth / 2;
+                        const cellCenterY = cellHeight / 2;
+
+                        // 3. Afstand tot het centrum (dx en dy)
+                        const dx = relCellX - cellCenterX;
+                        const dy = relCellY - cellCenterY;
+                        
+                        // Euclidische afstand (rond)
+                        const distanceSquared = (dx * dx) + (dy * dy);
+                        const maxDistSquared = (cellCenterX * cellCenterX) + (cellCenterY * cellCenterY);
+
+                        let normalizedDistance = 0;
+                        if (maxDistSquared > 0) {
+                            normalizedDistance = Math.sqrt(distanceSquared / maxDistSquared);
+                        }
+                        
+                        // Curve aanbrengen om de dot-groei van het centrum (lage drempel) naar de rand (hoge drempel) te simuleren
+                        normalizedDistance = Math.pow(normalizedDistance, 1.5); 
+                        
+                        // Drempelwaarde van 0 (centrum) tot 255 (randen)
+                        threshold = normalizedDistance * 255.0; 
+
+                    } else {
+                        // Logica voor SQUARE/Checkerboard matrix
+                        const i_base = Math.floor(sampleX / cellWidth);
+                        const j_base = Math.floor(sampleY / cellHeight);
+
+                        const i = (i_base % matrixSize + matrixSize) % matrixSize;
+                        const j = (j_base % matrixSize + matrixSize) % matrixSize;
+                        threshold = matrix[j][i];
+                    }
 
                     let value = 0; 
-                    // Vergelijking met de drempelwaarde van de matrix
-                    if (r >= threshold) { 
-                        value = 255; // Wit (geen inkt)
-                    }
                     
+                    // Vergelijking: Als de geinverteerde grijswaarde (inktpotentieel) groter of gelijk is aan de drempel, dan is het inkt.
+                    if (r_inverted >= threshold) { 
+                        value = 0; // Zwart / Inkt
+                    } else {
+                        value = 255; // Wit / Geen Inkt
+                    }
+
+
                     const outputIndex = (y * width + x) * 4;
                     outputData[outputIndex] = value;
                     outputData[outputIndex + 1] = value;
@@ -431,7 +466,7 @@
             ctx.putImageData(outputImageData, 0, 0);
         }
 
-        // --- Hoofd Rendering Functie ---
+        // --- Hoofd Rendering Functie (ongewijzigd) ---
 
         /**
          * Voert de volledige conversie- en rasterstappen uit.
@@ -492,7 +527,7 @@
         }
 
 
-        // --- Event Handlers & Init ---
+        // --- Event Handlers & Init (ongewijzigd) ---
 
         /**
          * Verwerkt het uploaden van de afbeelding.
