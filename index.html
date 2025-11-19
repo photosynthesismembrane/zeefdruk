@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zeefdruk Halftoon Raster Simulatie</title>
+    <title>Zeefdruk Halftoon Ellips Raster Simulatie</title>
     <!-- Tailwind CSS laden voor snelle styling en responsiviteit -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -86,7 +86,7 @@
     <div class="max-w-6xl mx-auto">
         <header class="text-center mb-8">
             <h1 class="text-3xl font-bold text-gray-800">Zeefdruk Halftoon Raster Simulatie</h1>
-            <p class="text-gray-500">Focus op de Ordered Dithering methode, ideaal voor het creëren van zeefdrukfilms.</p>
+            <p class="text-gray-500">Gebruikt altijd de vloeiende 'Ellips/Rond' rasterpunt vorm voor de beste toonovergangen.</p>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -108,7 +108,7 @@
 
                 <!-- Halftoon parameters -->
                 <div>
-                    <h3 class="text-lg font-medium mb-3 text-gray-700">2. Halftoon Parameters (Ordered Dithering)</h3>
+                    <h3 class="text-lg font-medium mb-3 text-gray-700">2. Halftoon Parameters</h3>
                     <!-- Frequency (LPI) -->
                     <div class="mb-5">
                         <label class="slider-label" for="frequencySlider">
@@ -127,17 +127,6 @@
                         </label>
                         <input type="range" id="angleSlider" min="0" max="180" value="45" step="1">
                         <p class="text-xs text-gray-400 mt-1">Hoek van het stippenpatroon. 45° is standaard.</p>
-                    </div>
-
-                    <!-- Dot Shape (Vorm) -->
-                    <div class="mb-5">
-                        <label class="block text-sm font-medium text-gray-700 mb-2" for="dotShape">
-                            Rasterpunt Vorm
-                        </label>
-                        <select id="dotShape" class="w-full p-2 border border-gray-300 rounded-md bg-gray-50 hover:bg-white transition duration-150 cursor-pointer">
-                            <option value="ellipse" selected>Clustered Dot (Rond/Ellips)</option>
-                            <option value="square">Checkerboard (Vierkant)</option>
-                        </select>
                     </div>
                 </div>
                 
@@ -215,8 +204,7 @@
         const downloadButton = document.getElementById('downloadButton');
         const errorMessage = document.getElementById('error-message');
         
-        const dotShapeSelect = document.getElementById('dotShape');
-        const equalizeCheckbox = document.getElementById('equalizeCheckbox'); // Nieuwe checkbox
+        const equalizeCheckbox = document.getElementById('equalizeCheckbox'); 
 
         const sliders = {
             gamma: document.getElementById('gammaSlider'),
@@ -236,15 +224,6 @@
 
         let currentImage = null; 
         let rendering = false; 
-
-        // Matrices voor Ordered Dithering (Halftoon)
-        // Standaard 4x4 Checkerboard Matrix (voor de 'square' optie)
-        const SQUARE_MATRIX = [
-            [ 0, 8, 2, 10 ],
-            [ 12, 4, 14, 6 ],
-            [ 3, 11, 1, 9 ],
-            [ 15, 7, 13, 5 ]
-        ].map(row => row.map(val => (val / 15.0) * 255.0)); // Schaal van 0-15 naar 0-255
 
 
         // --- Hulpfuncties ---
@@ -357,9 +336,9 @@
         }
 
         /**
-         * Past Ordered Dithering (Halftone Screen) toe.
+         * Past Ordered Dithering (Halftone Screen) toe, altijd met de Ellips/Ronde dot methode.
          */
-        function applyHalftone(ctx, originalImageData, lpi, angle, width, height, dotShape) {
+        function applyHalftone(ctx, originalImageData, lpi, angle, width, height) {
             const originalData = originalImageData.data;
             const outputImageData = ctx.createImageData(width, height);
             const outputData = outputImageData.data;
@@ -368,17 +347,11 @@
             halftoneCanvas.height = height;
 
             // Dot cell size in pixels (lpi is Lines Per Inch)
-            // Gebruik 72 DPI als standaard voor schermweergave
             const screenDPI = 72; 
             const pixelSize = screenDPI / lpi; 
             const cellWidth = Math.max(1, Math.round(pixelSize)); 
             const cellHeight = Math.max(1, Math.round(pixelSize));
             
-            const isClusteredDot = dotShape === 'ellipse';
-
-            const matrix = dotShape === 'square' ? SQUARE_MATRIX : null;
-            const matrixSize = matrix ? matrix.length : 0;
-
             const rad = angle * Math.PI / 180;
             const cosA = Math.cos(rad);
             const sinA = Math.sin(rad);
@@ -389,11 +362,10 @@
                     const r = originalData[originalIndex]; // Grijswaarde (0-255)
 
                     // INVERSIE VOOR POSITIEVE FILM:
-                    // De rasterpunt moet groter worden naarmate de afbeelding donkerder wordt (lagere 'r').
-                    // Daarom inverteren we de grijswaarde: 0 (donker) wordt 255 (hoogste inktpotentieel).
+                    // Zorgt ervoor dat donkere input (lage r) een hoog inktpotentieel (r_inverted hoog) heeft.
                     const r_inverted = 255 - r;
 
-                    // Rotatie Coördinaten - Belangrijk voor het creëren van de hoek
+                    // Rotatie Coördinaten om de hoek te creëren
                     const centerX = width / 2;
                     const centerY = height / 2;
                     const relX = x - centerX;
@@ -403,51 +375,39 @@
                     const sampleX = Math.round(rotX + centerX);
                     const sampleY = Math.round(rotY + centerY);
                     
-                    let threshold = 0; 
+                    
+                    // --- Ellips/Ronde Dot Logica ---
+                    
+                    // 1. Bepaal relatieve coördinaten binnen de rastercel
+                    const relCellX = (sampleX % cellWidth + cellWidth) % cellWidth;
+                    const relCellY = (sampleY % cellHeight + cellHeight) % cellHeight;
 
-                    if (isClusteredDot) {
-                        // Dynamische berekening voor een ronde dot (simuleert 'ellipse' in Photoshop)
-                        
-                        // 1. Bepaal relatieve coördinaten binnen de rastercel
-                        const relCellX = (sampleX % cellWidth + cellWidth) % cellWidth;
-                        const relCellY = (sampleY % cellHeight + cellHeight) % cellHeight;
+                    // 2. Centrum van de cel
+                    const cellCenterX = cellWidth / 2;
+                    const cellCenterY = cellHeight / 2;
 
-                        // 2. Centrum van de cel
-                        const cellCenterX = cellWidth / 2;
-                        const cellCenterY = cellHeight / 2;
+                    // 3. Afstand tot het centrum (dx en dy)
+                    const dx = relCellX - cellCenterX;
+                    const dy = relCellY - cellCenterY;
+                    
+                    // Euclidische afstand (rond)
+                    const distanceSquared = (dx * dx) + (dy * dy);
+                    const maxDistSquared = (cellCenterX * cellCenterX) + (cellCenterY * cellCenterY);
 
-                        // 3. Afstand tot het centrum (dx en dy)
-                        const dx = relCellX - cellCenterX;
-                        const dy = relCellY - cellCenterY;
-                        
-                        // Euclidische afstand (rond)
-                        const distanceSquared = (dx * dx) + (dy * dy);
-                        const maxDistSquared = (cellCenterX * cellCenterX) + (cellCenterY * cellCenterY);
-
-                        let normalizedDistance = 0;
-                        if (maxDistSquared > 0) {
-                            normalizedDistance = Math.sqrt(distanceSquared / maxDistSquared);
-                        }
-                        
-                        // Curve aanbrengen om de dot-groei van het centrum (lage drempel) naar de rand (hoge drempel) te simuleren
-                        normalizedDistance = Math.pow(normalizedDistance, 1.5); 
-                        
-                        // Drempelwaarde van 0 (centrum) tot 255 (randen)
-                        threshold = normalizedDistance * 255.0; 
-
-                    } else {
-                        // Logica voor SQUARE/Checkerboard matrix
-                        const i_base = Math.floor(sampleX / cellWidth);
-                        const j_base = Math.floor(sampleY / cellHeight);
-
-                        const i = (i_base % matrixSize + matrixSize) % matrixSize;
-                        const j = (j_base % matrixSize + matrixSize) % matrixSize;
-                        threshold = matrix[j][i];
+                    let normalizedDistance = 0;
+                    if (maxDistSquared > 0) {
+                        normalizedDistance = Math.sqrt(distanceSquared / maxDistSquared);
                     }
+                    
+                    // Curve (1.5) aanbrengen om de dot-groei van het centrum (lage drempel) naar de rand (hoge drempel) te simuleren
+                    normalizedDistance = Math.pow(normalizedDistance, 1.5); 
+                    
+                    // Drempelwaarde van 0 (centrum, eerste inkt) tot 255 (randen, laatste inkt)
+                    const threshold = normalizedDistance * 255.0; 
 
                     let value = 0; 
                     
-                    // Vergelijking: Als de geinverteerde grijswaarde (inktpotentieel) groter of gelijk is aan de drempel, dan is het inkt.
+                    // Vergelijking: Als het inktpotentieel groter of gelijk is aan de drempel, dan is het inkt (zwart).
                     if (r_inverted >= threshold) { 
                         value = 0; // Zwart / Inkt
                     } else {
@@ -466,7 +426,8 @@
             ctx.putImageData(outputImageData, 0, 0);
         }
 
-        // --- Hoofd Rendering Functie (ongewijzigd) ---
+
+        // --- Hoofd Rendering Functie ---
 
         /**
          * Voert de volledige conversie- en rasterstappen uit.
@@ -517,17 +478,17 @@
             // 5. Halftoon Verwerking
             const lpi = parseInt(sliders.frequency.value);
             const angle = parseInt(sliders.angle.value);
-            const dotShape = dotShapeSelect.value; 
             const processingData = originalCtx.getImageData(0, 0, width, height);
 
-            applyHalftone(halftoneCtx, processingData, lpi, angle, width, height, dotShape);
+            // Roep de functie aan met hardcoded Ellips/Rond logica
+            applyHalftone(halftoneCtx, processingData, lpi, angle, width, height);
 
             rendering = false;
             downloadButton.disabled = false;
         }
 
 
-        // --- Event Handlers & Init (ongewijzigd) ---
+        // --- Event Handlers & Init ---
 
         /**
          * Verwerkt het uploaden van de afbeelding.
@@ -555,7 +516,7 @@
             reader.readAsDataURL(file);
         });
 
-        // Koppel de sliders en select aan de rendering functie en de waarde-updates
+        // Koppel de sliders aan de rendering functie en de waarde-updates
         Object.keys(sliders).forEach(key => {
             sliders[key].addEventListener('input', () => {
                 // Formatteer de waardes netjes
@@ -565,18 +526,13 @@
                     values[key].textContent = sliders[key].value;
                 }
                 if (currentImage) {
+                    // Gebruik requestAnimationFrame voor vloeiender updates
                     requestAnimationFrame(renderHalftone);
                 }
             });
         });
 
-        // Event listener voor de Dot Shape select en de nieuwe Equalization checkbox
-        dotShapeSelect.addEventListener('change', () => {
-             if (currentImage) {
-                requestAnimationFrame(renderHalftone);
-            }
-        });
-
+        // Event listener voor de Equalization checkbox
         equalizeCheckbox.addEventListener('change', () => {
             if (currentImage) {
                 requestAnimationFrame(renderHalftone);
@@ -595,7 +551,7 @@
             const a = document.createElement('a');
             a.href = dataURL;
             // Bestandsnaam aanpassen met LPI en hoek
-            let filename = `halftoon_raster_${sliders.frequency.value}lpi_${sliders.angle.value}deg.png`;
+            let filename = `halftoon_raster_ellips_${sliders.frequency.value}lpi_${sliders.angle.value}deg.png`;
 
             a.download = filename;
             document.body.appendChild(a);
