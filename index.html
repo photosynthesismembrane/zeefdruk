@@ -84,7 +84,7 @@
             box-shadow: 0 0 3px rgba(0, 0, 0, 0.2);
         }
 
-        /* Drop-zone styles on the canvas itself */
+        /* Drop-zone styles on the canvas zelf */
         .drop-target {
             cursor: pointer;
             border: 2px dashed rgba(148, 163, 184, 0.7);
@@ -323,7 +323,9 @@
         const EQ_POINTS = [0, 64, 128, 192, 255]; // Grijswaarde punten voor de EQ (0-255)
         const HIST_HEIGHT = 80; // Vaste hoogte van het histogram canvas
         const HIST_WIDTH = 256; // Vaste logische breedte van het histogram canvas
-        const HIT_RADIUS = 8; // Raakvlak radius voor draggen
+
+        // Grotere hit radius voor makkelijker klikken
+        const HIT_RADIUS = 14;
         const SLIDER_RANGE_MIN = -0.5;
         const SLIDER_RANGE_MAX = 0.5;
 
@@ -350,7 +352,6 @@
 
         // Dragging State
         let activeEqIndex = -1; // Index van de EQ slider die wordt gesleept (-1 = geen)
-        let rect = null; // Bounding box van het histogram canvas
 
         // --- Image Processing Functions ---
 
@@ -488,8 +489,6 @@
 
             const screenDPI = 72;
             const pixelSize = screenDPI / lpi;
-            const cellWidth = Math.max(1, Math.round(pixelSize));
-            const cellHeight = Math.max(1, Math.round(pixelSize));
 
             const rad = angle * Math.PI / 180;
             const cosA = Math.cos(rad);
@@ -501,13 +500,6 @@
                     const r = originalData[originalIndex];
 
                     const r_inverted = 255 - r;
-
-                    const centerX = width / 2;
-                    const centerY = height / 2;
-                    const relX = x - centerX;
-                    const relY = y - centerY;
-                    const rotX = relX * cosA - relY * sinA;
-                    const rotY = relX * sinA + relY * cosA;
 
                     const sampleX = x;
                     const sampleY = y;
@@ -634,16 +626,18 @@
 
             histCtx.stroke();
 
-            histCtx.fillStyle = 'var(--curve-color)';
-            histCtx.strokeStyle = 'white';
-            histCtx.lineWidth = 1.5;
+            // ★ Grotere, gekleurde klik-cirkels
+            const handleRadius = 7;
+            histCtx.fillStyle = '#f97316';  // warme oranje cirkels
+            histCtx.strokeStyle = '#ffffff';
+            histCtx.lineWidth = 2;
 
             points.forEach((x, i) => {
                 const y = getCanvasY(eqShifts[i]);
-                const clampedY = Math.max(HIT_RADIUS, Math.min(HIST_HEIGHT - HIT_RADIUS, y));
+                const clampedY = Math.max(handleRadius, Math.min(HIST_HEIGHT - handleRadius, y));
 
                 histCtx.beginPath();
-                histCtx.arc(x, clampedY, HIT_RADIUS / 2, 0, 2 * Math.PI);
+                histCtx.arc(x, clampedY, handleRadius, 0, 2 * Math.PI);
                 histCtx.fill();
                 histCtx.stroke();
             });
@@ -715,7 +709,6 @@
             resultCanvasContainer.style.cursor = 'default';
             equalizeButton.disabled = false;
             resetButton.disabled = false;
-            rect = histogramCanvas.getBoundingClientRect();
 
             resetSliders();
             renderHalftone();
@@ -854,7 +847,9 @@
         Object.keys(sliders).forEach(key => {
             sliders[key].addEventListener('input', () => {
                 if (values[key]) {
-                    const fixed = key.includes('midpoint') ? 2 : (key === 'frequency' || key === 'angle' ? 0 : 1);
+                    const fixed =
+                        key.includes('midpoint') ? 2 :
+                        (key === 'frequency' || key === 'angle' ? 0 : 1);
                     values[key].textContent = parseFloat(sliders[key].value).toFixed(fixed);
                 }
                 if (baseImageData) {
