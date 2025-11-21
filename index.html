@@ -3,29 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zeefdruk Halftoon Ellips Raster Simulatie</title>
-    <!-- Tailwind CSS laden voor snelle styling en responsiviteit -->
+    <title>Halftoon Editor</title>
+
+    <!-- Google Font: Baloo 2 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700&display=swap"
+        rel="stylesheet"
+    >
+
+    <!-- Tailwind CSS laden -->
     <script src="https://cdn.tailwindcss.com"></script>
+
     <style>
-        /* Custom styles voor de app */
+        /* Custom styles for the app */
         :root {
-            --primary-color: #000;
-            --secondary-color: #f7f7f7;
-            --accent-color: #2563eb;
+            --primary-color: #1f2933;
+            --secondary-color: #f4f0e9;    /* zachte, warme achtergrond */
+            --card-color: #ffffff;         /* eenvoudige cards */
+            --accent-color: #f97316;       /* warme oranje knopkleur */
+            --accent-color-soft: #fed7aa;  /* zachte hover */
+            --accent-secondary: #38bdf8;   /* downloadknop */
+            --curve-color: #ef4444;        /* curve kleur in histogram */
         }
 
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: "Baloo 2", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             background-color: var(--secondary-color);
             color: var(--primary-color);
+            height: 100vh;
+            overflow: hidden;
         }
 
         .container-card {
-            background-color: white;
-            padding: 1.5rem;
-            border-radius: 12px;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            transition: box-shadow 0.3s ease;
+            background-color: var(--card-color);
+            padding: 1rem;
+            border-radius: 14px;
+            border: 1px solid rgba(15, 23, 42, 0.06);
+            box-shadow: 0 14px 40px rgba(15, 23, 42, 0.04);
         }
 
         .slider-label {
@@ -44,11 +60,11 @@
         input[type=range] {
             -webkit-appearance: none;
             width: 100%;
-            height: 8px;
+            height: 6px;
             background: #d1d5db;
-            border-radius: 4px;
+            border-radius: 3px;
             outline: none;
-            opacity: 0.7;
+            opacity: 0.8;
             transition: opacity 0.2s;
         }
 
@@ -59,271 +75,286 @@
         input[type=range]::-webkit-slider-thumb {
             -webkit-appearance: none;
             appearance: none;
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            border-radius: 999px;
             background: var(--accent-color);
             cursor: pointer;
-            border: 3px solid white;
-            box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+            border: 2px solid white;
+            box-shadow: 0 0 3px rgba(0, 0, 0, 0.2);
         }
 
-        .canvas-container {
-            display: grid;
-            gap: 1rem;
-            grid-template-columns: 1fr;
+        /* Drop-zone styles on the canvas itself */
+        .drop-target {
+            cursor: pointer;
+            border: 2px dashed rgba(148, 163, 184, 0.7);
+            background: rgba(255, 255, 255, 0.7);
+            color: #6b7280;
+            font-weight: 500;
+            transition: all 0.2s;
         }
 
-        @media (min-width: 768px) {
-            .canvas-container {
-                grid-template-columns: 1fr 1fr;
-            }
+        .drop-target.drag-over {
+            border-color: #10b981 !important;
+            background-color: #ecfdf5 !important;
+            color: #065f46;
+        }
+
+        .canvas-placeholder {
+            flex-grow: 1;
+            min-height: 100px;
+            position: relative;
+            overflow: hidden;
+            max-height: 100%;
+        }
+
+        /* Canvas-container mag nooit groter worden dan de viewport */
+        #resultCanvasContainer {
+            max-height: calc(100vh - 2rem);
+            overflow: hidden;
+        }
+
+        /* Zorg dat de canvas past binnen de container */
+        #resultCanvas {
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            display: block;
+            cursor: default;
+        }
+
+        /* Histogram canvas */
+        #histogramCanvas {
+            touch-action: none;
+            cursor: grab;
+        }
+
+        #histogramCanvas.dragging {
+            cursor: grabbing;
+        }
+
+        /* Knoppen – zachte, sfeervolle stijl */
+        #equalizeButton,
+        #resetButton,
+        #downloadButton {
+            border-radius: 999px;
+            font-weight: 600;
+            letter-spacing: 0.01em;
+        }
+
+        #equalizeButton {
+            background-color: var(--accent-color);
+            color: #ffffff;
+            border: none;
+        }
+
+        #equalizeButton:hover:not(:disabled) {
+            background-color: #fb923c;
+        }
+
+        #resetButton {
+            background-color: transparent;
+            color: var(--primary-color);
+            border: 1px solid rgba(148, 163, 184, 0.8);
+        }
+
+        #resetButton:hover:not(:disabled) {
+            background-color: rgba(148, 163, 184, 0.08);
+        }
+
+        #downloadButton {
+            background-color: var(--accent-secondary);
+            color: #ffffff;
+            border: none;
+        }
+
+        #downloadButton:hover:not(:disabled) {
+            background-color: #0ea5e9;
+        }
+
+        #downloadButton:disabled,
+        #equalizeButton:disabled,
+        #resetButton:disabled {
+            opacity: 0.5;
+            cursor: default;
         }
     </style>
 </head>
-<body class="p-4 md:p-8 min-h-screen">
+<body class="p-4 flex flex-col md:flex-row h-screen">
 
-    <div class="max-w-6xl mx-auto">
-        <header class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-gray-800">Zeefdruk Halftoon Raster Simulatie</h1>
-            <p class="text-gray-500">Gebruikt altijd de vloeiende 'Ellips/Rond' rasterpunt vorm voor de beste toonovergangen.</p>
+    <!-- Controls Column (Linker Paneel) -->
+    <div class="md:w-1/3 w-full flex flex-col gap-4 pr-4 h-full overflow-y-auto">
+        <header class="mb-2">
+            <h1 class="text-2xl font-bold text-gray-800">Halftoon-editor</h1>
         </header>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-            <!-- Besturingselementen Kolom -->
-            <div class="lg:col-span-1 container-card h-fit sticky top-4">
-                <h2 class="text-xl font-semibold mb-4 border-b pb-2 text-gray-700">Besturingselementen</h2>
-
-                <!-- Bestand invoer -->
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2" for="imageInput">
-                        1. Selecteer Afbeelding
-                    </label>
-                    <input type="file" id="imageInput" accept="image/*" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100 cursor-pointer">
-                    <p id="error-message" class="text-red-500 text-xs mt-1 hidden">Afbeelding kon niet worden geladen.</p>
-                </div>
-
-                <hr class="my-4">
-
-                <!-- Halftoon parameters -->
+        <!-- 1. Raster Parameters -->
+        <div class="container-card">
+            <h2 class="text-lg font-semibold mb-2">Rasterinstellingen</h2>
+            <p class="text-xs text-gray-500 mb-3">
+                Bepaal de dichtheid en hoek van het halftoonraster.
+            </p>
+            <div class="grid grid-cols-2 gap-4">
+                <!-- Frequency (LPI) -->
                 <div>
-                    <h3 class="text-lg font-medium mb-3 text-gray-700">2. Halftoon Parameters</h3>
-                    <!-- Frequency (LPI) -->
-                    <div class="mb-5">
-                        <label class="slider-label" for="frequencySlider">
-                            <span>Rasterfrequentie (LPI)</span>
-                            <span id="frequencyValue" class="slider-value">20</span>
-                        </label>
-                        <input type="range" id="frequencySlider" min="5" max="50" value="20" step="1">
-                        <p class="text-xs text-gray-400 mt-1">Lijnen per inch (lpi). Hoger = fijnere stippen.</p>
-                    </div>
-
-                    <!-- Angle (Hoek) -->
-                    <div class="mb-5">
-                        <label class="slider-label" for="angleSlider">
-                            <span>Rasterhoek (Graden)</span>
-                            <span id="angleValue" class="slider-value">45</span>
-                        </label>
-                        <input type="range" id="angleSlider" min="0" max="180" value="45" step="1">
-                        <p class="text-xs text-gray-400 mt-1">Hoek van het stippenpatroon. 45° is standaard.</p>
-                    </div>
-                </div>
-                
-                <h3 class="text-lg font-medium mb-3 text-gray-700 border-t pt-3 mt-3">3. Tonale Aanpassingen</h3>
-
-                <!-- Histogram Equalization Checkbox -->
-                <div class="mb-5">
-                    <label class="flex items-center space-x-2 text-sm font-medium text-gray-700 cursor-pointer">
-                        <input type="checkbox" id="equalizeCheckbox" class="form-checkbox h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
-                        <span>Histogram Equalization Toepassen</span>
+                    <label class="slider-label" for="frequencySlider">
+                        <span>Frequentie (LPI)</span>
+                        <span id="frequencyValue" class="slider-value">20</span>
                     </label>
-                    <p class="text-xs text-gray-400 mt-1">Verbetert automatisch het contrast door de helderheidswaarden te spreiden.</p>
+                    <input type="range" id="frequencySlider" min="5" max="50" value="20" step="1">
                 </div>
-                
-                <!-- Gamma Correction -->
-                <div class="mb-5">
-                    <label class="slider-label" for="gammaSlider">
-                        <span>Gamma Correctie (Tonaliteit)</span>
-                        <span id="gammaValue" class="slider-value">1.00</span>
+                <!-- Angle (Hoek) -->
+                <div>
+                    <label class="slider-label" for="angleSlider">
+                        <span>Hoek (°)</span>
+                        <span id="angleValue" class="slider-value">45</span>
                     </label>
-                    <input type="range" id="gammaSlider" min="0.5" max="2.5" value="1.0" step="0.05">
+                    <input type="range" id="angleSlider" min="0" max="180" value="45" step="1">
                 </div>
+            </div>
+        </div>
 
-                <!-- Midpoint/Brightness Shift -->
-                <div class="mb-5">
-                    <label class="slider-label" for="midpointSlider">
-                        <span>Midpoint Shift (Helderheid)</span>
-                        <span id="midpointValue" class="slider-value">0.00</span>
-                    </label>
-                    <input type="range" id="midpointSlider" min="-0.3" max="0.3" value="0.0" step="0.05">
+        <!-- 2. Tonale Aanpassingen & Equalizer -->
+        <div class="container-card flex-grow overflow-y-auto">
+            <h2 class="text-lg font-semibold mb-1">Tonen & contrast</h2>
+            <p class="text-xs text-gray-500 mb-3">
+                Pas helderheid, contrast en de grijscurve aan.
+            </p>
+
+            <!-- Histogram Weergave met 5-punts EQ -->
+            <div class="mb-4 p-2 rounded-md border border-gray-200 bg-white/50">
+                <p class="text-xs font-medium text-gray-700 mb-1">
+                    Histogram & curve (sleep de punten)
+                </p>
+                <canvas id="histogramCanvas" class="w-full h-16 bg-white border border-gray-200 rounded-sm"></canvas>
+                <div class="grid grid-cols-5 gap-1 mt-2 hidden" id="eqSlidersContainer">
+                    <input type="range" id="eq1" min="-0.5" max="0.5" value="0.0" step="0.05" title="Schaduwen">
+                    <input type="range" id="eq2" min="-0.5" max="0.5" value="0.0" step="0.05" title="Donkere middentonen">
+                    <input type="range" id="eq3" min="-0.5" max="0.5" value="0.0" step="0.05" title="Middentonen">
+                    <input type="range" id="eq4" min="-0.5" max="0.5" value="0.0" step="0.05" title="Lichte middentonen">
+                    <input type="range" id="eq5" min="-0.5" max="0.5" value="0.0" step="0.05" title="Hooglichten">
                 </div>
+                <p class="text-xs text-gray-400 mt-1">
+                    De curve beïnvloedt hoe licht en donker verdeeld worden.
+                </p>
+            </div>
 
-                <!-- Contrast (Levels/Curves) -->
-                <div class="mb-5">
+            <!-- Equalize & Reset Knoppen -->
+            <div class="flex gap-2 mb-4">
+                <button id="equalizeButton"
+                        class="flex-1 py-2 px-3 text-sm transition duration-200"
+                        disabled>
+                    Gelijkverdeeld
+                </button>
+                <button id="resetButton"
+                        class="flex-1 py-2 px-3 text-sm transition duration-200"
+                        disabled>
+                    Origineel
+                </button>
+            </div>
+
+            <!-- Contrast en Helderheid Sliders -->
+            <div class="grid grid-cols-2 gap-4">
+                <div class="mb-3">
                     <label class="slider-label" for="contrastSlider">
-                        <span>Contrast Factor</span>
+                        <span>Contrast</span>
                         <span id="contrastValue" class="slider-value">1.5</span>
                     </label>
                     <input type="range" id="contrastSlider" min="0.5" max="3.0" value="1.5" step="0.1">
                 </div>
 
-                <!-- Knop voor downloaden -->
-                <button id="downloadButton" class="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-2 rounded-lg transition duration-200 disabled:opacity-50 mt-4" disabled>
-                    Raster Afbeelding Downloaden
-                </button>
-            </div>
-
-            <!-- Canvas Weergave Kolom -->
-            <div class="lg:col-span-2">
-                <div class="canvas-container">
-                    
-                    <!-- Originele Afbeelding Canvas -->
-                    <div class="container-card text-center">
-                        <h3 class="text-lg font-semibold mb-2">Origineel (Aangepaste Grijswaarden)</h3>
-                        <canvas id="originalCanvas" class="w-full border border-gray-300 rounded-lg shadow-inner"></canvas>
-                        <p class="text-sm text-gray-400 mt-2">De afbeelding na Tonale Correcties.</p>
-                    </div>
-
-                    <!-- Gerasterde Afbeelding Canvas -->
-                    <div class="container-card text-center">
-                        <h3 class="text-lg font-semibold mb-2">Gerasterd Resultaat (Halftoon)</h3>
-                        <canvas id="halftoneCanvas" class="w-full border-4 border-black rounded-lg shadow-2xl"></canvas>
-                        <p class="text-sm text-gray-400 mt-2">De uiteindelijke bitmap (1-bit) voor de zeefdrukfilm.</p>
-                    </div>
+                <div class="mb-3">
+                    <label class="slider-label" for="midpointSlider">
+                        <span>Helderheid</span>
+                        <span id="midpointValue" class="slider-value">0.00</span>
+                    </label>
+                    <input type="range" id="midpointSlider" min="-0.3" max="0.3" value="0.0" step="0.05">
                 </div>
             </div>
+        </div>
+
+        <!-- Download Knop (Onderaan) -->
+        <button id="downloadButton"
+                class="w-full py-3 mt-auto transition duration-200 disabled:opacity-50 text-sm">
+            Afbeelding downloaden
+        </button>
+    </div>
+
+    <!-- Canvas Weergave Kolom (Rechter Paneel) -->
+    <div class="md:w-2/3 w-full flex flex-col gap-4 h-full pt-4 md:pt-0">
+        <!-- Resultaat & Drop Zone -->
+        <div id="resultCanvasContainer" class="container-card flex-1 flex flex-col drop-target">
+            <h3 class="text-lg font-semibold mb-2" id="canvasTitle">
+                Afbeelding naar raster
+            </h3>
+            <p class="text-xs text-gray-500 mb-3">
+                Sleep een afbeelding hierheen of klik om te kiezen.
+            </p>
+            <div class="canvas-placeholder flex-1 min-h-0 relative flex items-center justify-center">
+                <canvas id="resultCanvas" class="border-4 border-black rounded-lg shadow-2xl" style="display:none;"></canvas>
+                <input type="file" id="imageInput" accept="image/*" class="hidden">
+                <div id="placeholderText" class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
+                    <span class="text-3xl mb-2">🖼️</span>
+                    <p class="text-sm text-gray-600">
+                        Sleep een afbeelding hierheen<br>
+                        of klik om te selecteren
+                    </p>
+                </div>
+            </div>
+            <p id="error-message" class="text-red-500 text-xs mt-1 hidden"></p>
         </div>
     </div>
 
     <script>
         // Globale variabelen
         const imageInput = document.getElementById('imageInput');
-        const originalCanvas = document.getElementById('originalCanvas');
-        const halftoneCanvas = document.getElementById('halftoneCanvas');
+        const resultCanvas = document.getElementById('resultCanvas');
+        const resultCanvasContainer = document.getElementById('resultCanvasContainer');
+        const histogramCanvas = document.getElementById('histogramCanvas');
+        const equalizeButton = document.getElementById('equalizeButton');
+        const resetButton = document.getElementById('resetButton');
         const downloadButton = document.getElementById('downloadButton');
         const errorMessage = document.getElementById('error-message');
-        
-        const equalizeCheckbox = document.getElementById('equalizeCheckbox'); 
+        const canvasTitle = document.getElementById('canvasTitle');
+        const placeholderText = document.getElementById('placeholderText');
+
+        const EQ_POINTS = [0, 64, 128, 192, 255]; // Grijswaarde punten voor de EQ (0-255)
+        const HIST_HEIGHT = 80; // Vaste hoogte van het histogram canvas
+        const HIST_WIDTH = 256; // Vaste logische breedte van het histogram canvas
+        const HIT_RADIUS = 8; // Raakvlak radius voor draggen
+        const SLIDER_RANGE_MIN = -0.5;
+        const SLIDER_RANGE_MAX = 0.5;
 
         const sliders = {
-            gamma: document.getElementById('gammaSlider'),
             frequency: document.getElementById('frequencySlider'),
             angle: document.getElementById('angleSlider'),
             contrast: document.getElementById('contrastSlider'),
-            midpoint: document.getElementById('midpointSlider'), 
+            midpoint: document.getElementById('midpointSlider'),
+            eq1: document.getElementById('eq1'), eq2: document.getElementById('eq2'),
+            eq3: document.getElementById('eq3'), eq4: document.getElementById('eq4'), eq5: document.getElementById('eq5'),
         };
+        const eqSliders = [sliders.eq1, sliders.eq2, sliders.eq3, sliders.eq4, sliders.eq5];
 
         const values = {
-            gamma: document.getElementById('gammaValue'),
             frequency: document.getElementById('frequencyValue'),
             angle: document.getElementById('angleValue'),
             contrast: document.getElementById('contrastValue'),
-            midpoint: document.getElementById('midpointValue'), 
+            midpoint: document.getElementById('midpointValue'),
         };
 
-        let currentImage = null; 
-        let rendering = false; 
+        let originalSourceImage = null; // The initial, unaltered image object
+        let baseImageData = null;       // The accepted ImageData (original or equalized)
+        let rendering = false;
 
+        // Dragging State
+        let activeEqIndex = -1; // Index van de EQ slider die wordt gesleept (-1 = geen)
+        let rect = null; // Bounding box van het histogram canvas
 
-        // --- Hulpfuncties ---
+        // --- Image Processing Functions ---
 
-        /**
-         * Past Histogram Equalization toe op de grijswaarde pixeldata.
-         */
-        function applyHistogramEqualization(imageData) {
-            const data = imageData.data;
-            const totalPixels = data.length / 4;
-            
-            // 1. Bereken Histogram (frequentie van elke intensiteit 0-255)
-            const histogram = new Array(256).fill(0);
-            for (let i = 0; i < data.length; i += 4) {
-                // Gebruik de R-waarde, die al de grijswaarde bevat
-                const intensity = Math.round(data[i]); 
-                histogram[intensity]++;
-            }
-
-            // 2. Bereken Cumulatieve Distributiefunctie (CDF)
-            const cdf = new Array(256).fill(0);
-            let cdf_min = 0;
-            
-            cdf[0] = histogram[0];
-            for (let i = 1; i < 256; i++) {
-                cdf[i] = cdf[i - 1] + histogram[i];
-            }
-            
-            // Zoek de eerste niet-nul waarde in de CDF (minimale cdf, negeert puur zwarte pixels)
-            for (let i = 0; i < 256; i++) {
-                if (cdf[i] > 0) {
-                    cdf_min = cdf[i];
-                    break;
-                }
-            }
-
-            // 3. Creëer de Lookup Table (LUT)
-            const lut = new Array(256);
-            const denominator = totalPixels - cdf_min;
-
-            if (denominator === 0) {
-                // Voorkom delen door nul bij lege of uniforme afbeeldingen
-                for (let i = 0; i < 256; i++) {
-                    lut[i] = i; 
-                }
-            } else {
-                for (let i = 0; i < 256; i++) {
-                    // Formule voor Histogram Equalization
-                    lut[i] = Math.round(((cdf[i] - cdf_min) / denominator) * 255);
-                    lut[i] = Math.max(0, Math.min(255, lut[i]));
-                }
-            }
-
-            // 4. Pas de LUT toe op de afbeelding
-            for (let i = 0; i < data.length; i += 4) {
-                const oldIntensity = Math.round(data[i]);
-                const newIntensity = lut[oldIntensity];
-                
-                data[i] = newIntensity;
-                data[i + 1] = newIntensity;
-                data[i + 2] = newIntensity;
-            }
-
-            return imageData;
-        }
-
-        /**
-         * Past Gamma, Contrast en de middentoon (brightness shift) van de pixeldata aan.
-         */
-        function adjustContrast(imageData, contrastFactor, midpointShift, gamma) {
-            const data = imageData.data;
-            const contrast = contrastFactor;
-            const shift = midpointShift; 
-
-            for (let i = 0; i < data.length; i += 4) {
-                let r = data[i] / 255.0; // Grijswaarde als 0.0 - 1.0
-                
-                // 1. Apply Gamma Correction
-                r = Math.pow(r, gamma);
-                
-                // 2. Apply Midpoint Shift
-                r = r + shift; 
-
-                // 3. Apply Contrast
-                r = (r - 0.5) * contrast + 0.5;
-
-                // Clamp de waarde tussen 0 en 1
-                r = Math.min(1.0, Math.max(0.0, r)); 
-
-                const new_value = Math.round(r * 255);
-                data[i] = new_value;
-                data[i + 1] = new_value;
-                data[i + 2] = new_value;
-            }
-            return imageData;
-        }
-
-        /**
-         * Converteert de pixeldata naar grijswaarden.
-         */
+        /** Converts image data to grayscale (Luminosity method). */
         function convertToGrayscale(imageData) {
             const data = imageData.data;
             for (let i = 0; i < data.length; i += 4) {
@@ -335,23 +366,131 @@
             return imageData;
         }
 
+        /** Clones ImageData for non-destructive operations. */
+        function cloneImageData(imageData) {
+            return new ImageData(
+                new Uint8ClampedArray(imageData.data),
+                imageData.width,
+                imageData.height
+            );
+        }
+
+        /** Applies standard Histogram Equalization. */
+        function applyHistogramEqualization(imageData) {
+            const data = imageData.data;
+            const totalPixels = data.length / 4;
+            const histogram = new Array(256).fill(0);
+            for (let i = 0; i < data.length; i += 4) {
+                const intensity = Math.round(data[i]);
+                histogram[intensity]++;
+            }
+
+            const cdf = new Array(256).fill(0);
+            let cdf_min = 0;
+
+            cdf[0] = histogram[0];
+            for (let i = 1; i < 256; i++) {
+                cdf[i] = cdf[i - 1] + histogram[i];
+            }
+
+            for (let i = 0; i < 256; i++) {
+                if (cdf[i] > 0) {
+                    cdf_min = cdf[i];
+                    break;
+                }
+            }
+
+            const lut = new Array(256);
+            const denominator = totalPixels - cdf_min;
+
+            if (denominator === 0) {
+                for (let i = 0; i < 256; i++) {
+                    lut[i] = i;
+                }
+            } else {
+                for (let i = 0; i < 256; i++) {
+                    lut[i] = Math.round(((cdf[i] - cdf_min) / denominator) * 255);
+                    lut[i] = Math.max(0, Math.min(255, lut[i]));
+                }
+            }
+
+            for (let i = 0; i < data.length; i += 4) {
+                const oldIntensity = Math.round(data[i]);
+                const newIntensity = lut[oldIntensity];
+
+                data[i] = newIntensity;
+                data[i + 1] = newIntensity;
+                data[i + 2] = newIntensity;
+            }
+
+            return imageData;
+        }
+
         /**
-         * Past Ordered Dithering (Halftone Screen) toe, altijd met de Ellips/Ronde dot methode.
+         * Applies tonal adjustments (EQ, Contrast, Midpoint) to the cloned baseImageData.
          */
+        function applyTonalAdjustments(imageData, contrastFactor, midpointShift, eqValues) {
+            const data = imageData.data;
+            const contrast = contrastFactor;
+            const shift = midpointShift;
+
+            const eqShifts = eqValues.map(v => parseFloat(v));
+            const eqMap = new Array(256);
+
+            for (let i = 0; i < 256; i++) {
+                let eqShift = 0;
+                if (i <= 64) {
+                    const normalizedSegment = i / 64.0;
+                    eqShift = eqShifts[0] * (1 - normalizedSegment) + eqShifts[1] * normalizedSegment;
+                } else if (i <= 128) {
+                    const normalizedSegment = (i - 64) / 64.0;
+                    eqShift = eqShifts[1] * (1 - normalizedSegment) + eqShifts[2] * normalizedSegment;
+                } else if (i <= 192) {
+                    const normalizedSegment = (i - 128) / 64.0;
+                    eqShift = eqShifts[2] * (1 - normalizedSegment) + eqShifts[3] * normalizedSegment;
+                } else {
+                    const normalizedSegment = (i - 192) / 63.0;
+                    eqShift = eqShifts[3] * (1 - normalizedSegment) + eqShifts[4] * normalizedSegment;
+                }
+
+                eqMap[i] = eqShift;
+            }
+
+            for (let i = 0; i < data.length; i += 4) {
+                let r = data[i] / 255.0; // Grayscale value as 0.0 - 1.0
+                const oldIntensity = Math.round(data[i]);
+
+                // 1. Apply 5-Point EQ Curve Shift
+                r = r + eqMap[oldIntensity];
+
+                // 2. Apply Midpoint Shift (Brightness)
+                r = r + shift;
+
+                // 3. Apply Contrast
+                r = (r - 0.5) * contrast + 0.5;
+
+                // Clamp the value between 0 and 1
+                r = Math.min(1.0, Math.max(0.0, r));
+
+                const new_value = Math.round(r * 255);
+                data[i] = new_value;
+                data[i + 1] = new_value;
+                data[i + 2] = new_value;
+            }
+            return imageData;
+        }
+
+        /** Applies the Halftone dot screening logic. */
         function applyHalftone(ctx, originalImageData, lpi, angle, width, height) {
             const originalData = originalImageData.data;
             const outputImageData = ctx.createImageData(width, height);
             const outputData = outputImageData.data;
 
-            halftoneCanvas.width = width;
-            halftoneCanvas.height = height;
-
-            // Dot cell size in pixels (lpi is Lines Per Inch)
-            const screenDPI = 72; 
-            const pixelSize = screenDPI / lpi; 
-            const cellWidth = Math.max(1, Math.round(pixelSize)); 
+            const screenDPI = 72;
+            const pixelSize = screenDPI / lpi;
+            const cellWidth = Math.max(1, Math.round(pixelSize));
             const cellHeight = Math.max(1, Math.round(pixelSize));
-            
+
             const rad = angle * Math.PI / 180;
             const cosA = Math.cos(rad);
             const sinA = Math.sin(rad);
@@ -359,38 +498,35 @@
             for (let y = 0; y < height; y++) {
                 for (let x = 0; x < width; x++) {
                     const originalIndex = (y * width + x) * 4;
-                    const r = originalData[originalIndex]; // Grijswaarde (0-255)
+                    const r = originalData[originalIndex];
 
-                    // INVERSIE VOOR POSITIEVE FILM:
-                    // Zorgt ervoor dat donkere input (lage r) een hoog inktpotentieel (r_inverted hoog) heeft.
                     const r_inverted = 255 - r;
 
-                    // Rotatie Coördinaten om de hoek te creëren
                     const centerX = width / 2;
                     const centerY = height / 2;
                     const relX = x - centerX;
                     const relY = y - centerY;
                     const rotX = relX * cosA - relY * sinA;
                     const rotY = relX * sinA + relY * cosA;
-                    const sampleX = Math.round(rotX + centerX);
-                    const sampleY = Math.round(rotY + centerY);
-                    
-                    
-                    // --- Ellips/Ronde Dot Logica ---
-                    
-                    // 1. Bepaal relatieve coördinaten binnen de rastercel
-                    const relCellX = (sampleX % cellWidth + cellWidth) % cellWidth;
-                    const relCellY = (sampleY % cellHeight + cellHeight) % cellHeight;
 
-                    // 2. Centrum van de cel
-                    const cellCenterX = cellWidth / 2;
-                    const cellCenterY = cellHeight / 2;
+                    const sampleX = x;
+                    const sampleY = y;
 
-                    // 3. Afstand tot het centrum (dx en dy)
-                    const dx = relCellX - cellCenterX;
-                    const dy = relCellY - cellCenterY;
-                    
-                    // Euclidische afstand (rond)
+                    const rotatedCellX = sampleX * cosA - sampleY * sinA;
+                    const rotatedCellY = sampleX * sinA + sampleY * cosA;
+
+                    const relCellX = (rotatedCellX / pixelSize);
+                    const relCellY = (rotatedCellY / pixelSize);
+
+                    const cellPhaseX = (relCellX % 1 + 1) % 1;
+                    const cellPhaseY = (relCellY % 1 + 1) % 1;
+
+                    const cellCenterX = 0.5;
+                    const cellCenterY = 0.5;
+
+                    const dx = cellPhaseX - cellCenterX;
+                    const dy = cellPhaseY - cellCenterY;
+
                     const distanceSquared = (dx * dx) + (dy * dy);
                     const maxDistSquared = (cellCenterX * cellCenterX) + (cellCenterY * cellCenterY);
 
@@ -398,160 +534,374 @@
                     if (maxDistSquared > 0) {
                         normalizedDistance = Math.sqrt(distanceSquared / maxDistSquared);
                     }
-                    
-                    // Curve (1.5) aanbrengen om de dot-groei van het centrum (lage drempel) naar de rand (hoge drempel) te simuleren
-                    normalizedDistance = Math.pow(normalizedDistance, 1.5); 
-                    
-                    // Drempelwaarde van 0 (centrum, eerste inkt) tot 255 (randen, laatste inkt)
-                    const threshold = normalizedDistance * 255.0; 
 
-                    let value = 0; 
-                    
-                    // Vergelijking: Als het inktpotentieel groter of gelijk is aan de drempel, dan is het inkt (zwart).
-                    if (r_inverted >= threshold) { 
-                        value = 0; // Zwart / Inkt
+                    normalizedDistance = Math.pow(normalizedDistance, 1.5);
+
+                    const threshold = normalizedDistance * 255.0;
+
+                    let value = 0;
+
+                    if (r_inverted < threshold) {
+                        value = 255;
                     } else {
-                        value = 255; // Wit / Geen Inkt
+                        value = 0;
                     }
-
 
                     const outputIndex = (y * width + x) * 4;
                     outputData[outputIndex] = value;
                     outputData[outputIndex + 1] = value;
                     outputData[outputIndex + 2] = value;
-                    outputData[outputIndex + 3] = 255; 
+                    outputData[outputIndex + 3] = 255;
                 }
             }
 
             ctx.putImageData(outputImageData, 0, 0);
         }
 
+        // --- Histogram Helpers ---
 
-        // --- Hoofd Rendering Functie ---
+        function getCurvePoints() {
+            if (!baseImageData) return [];
 
-        /**
-         * Voert de volledige conversie- en rasterstappen uit.
-         */
-        async function renderHalftone() {
-            if (!currentImage || rendering) return;
+            const canvasRect = histogramCanvas.getBoundingClientRect();
+            const scaleX = canvasRect.width / HIST_WIDTH;
+
+            const eqValues = eqSliders.map(s => parseFloat(s.value));
+            const points = [];
+
+            for (let i = 0; i < EQ_POINTS.length; i++) {
+                const x = EQ_POINTS[i];
+                const shiftY = eqValues[i] * HIST_HEIGHT;
+                const y = HIST_HEIGHT - (shiftY + (HIST_HEIGHT / 2));
+
+                points.push({
+                    x: Math.round(x * scaleX),
+                    y: Math.round(Math.max(0, Math.min(HIST_HEIGHT, y)))
+                });
+            }
+            return points;
+        }
+
+        function drawHistogram(imageData, eqValues) {
+            const histCtx = histogramCanvas.getContext('2d');
+            const data = imageData.data;
+
+            histogramCanvas.width = HIST_WIDTH;
+            histogramCanvas.height = HIST_HEIGHT;
+
+            const histogram = new Array(256).fill(0);
+            for (let i = 0; i < data.length; i += 4) {
+                const intensity = Math.round(data[i]);
+                histogram[intensity]++;
+            }
+
+            let maxCount = 0;
+            for (let i = 0; i < 256; i++) {
+                if (histogram[i] > maxCount) {
+                    maxCount = histogram[i];
+                }
+            }
+
+            histCtx.clearRect(0, 0, HIST_WIDTH, HIST_HEIGHT);
+            histCtx.fillStyle = '#cbd5e1';
+            const barWidth = 1;
+
+            for (let i = 0; i < 256; i++) {
+                const barHeight = (histogram[i] / (maxCount || 1)) * HIST_HEIGHT;
+                const x = i * barWidth;
+                const y = HIST_HEIGHT - barHeight;
+                histCtx.fillRect(x, y, barWidth, barHeight);
+            }
+
+            const eqShifts = eqValues.map(v => parseFloat(v));
+            histCtx.strokeStyle = 'var(--curve-color)';
+            histCtx.lineWidth = 2;
+            histCtx.beginPath();
+
+            const points = EQ_POINTS;
+
+            const getCanvasY = (eqShift) => HIST_HEIGHT - (eqShift * HIST_HEIGHT + (HIST_HEIGHT / 2));
+
+            histCtx.moveTo(0, getCanvasY(eqShifts[0]));
+
+            for (let i = 0; i < 5; i++) {
+                const x = points[i];
+                const y = getCanvasY(eqShifts[i]);
+                histCtx.lineTo(x, Math.max(0, Math.min(HIST_HEIGHT, y)));
+            }
+
+            histCtx.lineTo(HIST_WIDTH, getCanvasY(eqShifts[4]));
+
+            histCtx.stroke();
+
+            histCtx.fillStyle = 'var(--curve-color)';
+            histCtx.strokeStyle = 'white';
+            histCtx.lineWidth = 1.5;
+
+            points.forEach((x, i) => {
+                const y = getCanvasY(eqShifts[i]);
+                const clampedY = Math.max(HIT_RADIUS, Math.min(HIST_HEIGHT - HIT_RADIUS, y));
+
+                histCtx.beginPath();
+                histCtx.arc(x, clampedY, HIT_RADIUS / 2, 0, 2 * Math.PI);
+                histCtx.fill();
+                histCtx.stroke();
+            });
+        }
+
+        // --- Main Rendering Function ---
+
+        function renderHalftone() {
+            if (!baseImageData || rendering) return;
 
             rendering = true;
             downloadButton.disabled = true;
 
-            const width = currentImage.width;
-            const height = currentImage.height;
+            const width = baseImageData.width;
+            const height = baseImageData.height;
 
-            // 1. Setup Canvas
-            originalCanvas.width = width;
-            originalCanvas.height = height;
-            halftoneCanvas.width = width;
-            halftoneCanvas.height = height;
+            resultCanvas.width = width;
+            resultCanvas.height = height;
 
-            const originalCtx = originalCanvas.getContext('2d');
-            const halftoneCtx = halftoneCanvas.getContext('2d');
+            const resultCtx = resultCanvas.getContext('2d');
 
-            // 2. Initial Drawing
-            originalCtx.clearRect(0, 0, width, height);
-            originalCtx.drawImage(currentImage, 0, 0, width, height);
-            let imageData = originalCtx.getImageData(0, 0, width, height);
+            let currentImageData = cloneImageData(baseImageData);
 
-            // 3. Grijswaarden
-            imageData = convertToGrayscale(imageData);
-            
-            // 3.5. Optionele Histogram Equalization
-            const equalize = equalizeCheckbox.checked;
-            if (equalize) {
-                imageData = applyHistogramEqualization(imageData);
-            }
-
-            // 4. Tonale aanpassingen (Gamma, Contrast, Midpoint)
-            const gamma = parseFloat(sliders.gamma.value);
             const contrastFactor = parseFloat(sliders.contrast.value);
-            const midpointShift = parseFloat(sliders.midpoint.value); 
-            
-            // Pas de contrastcorrecties toe na de optionele Histogram Equalization
-            imageData = adjustContrast(imageData, contrastFactor, midpointShift, gamma);
+            const midpointShift = parseFloat(sliders.midpoint.value);
+            const eqValues = eqSliders.map(s => s.value);
 
-            // Toon het grijswaarden/contrast resultaat
-            originalCtx.putImageData(imageData, 0, 0);
+            currentImageData = applyTonalAdjustments(currentImageData, contrastFactor, midpointShift, eqValues);
 
-            // 5. Halftoon Verwerking
+            drawHistogram(currentImageData, eqValues);
+
             const lpi = parseInt(sliders.frequency.value);
             const angle = parseInt(sliders.angle.value);
-            const processingData = originalCtx.getImageData(0, 0, width, height);
 
-            // Roep de functie aan met hardcoded Ellips/Rond logica
-            applyHalftone(halftoneCtx, processingData, lpi, angle, width, height);
+            applyHalftone(resultCtx, currentImageData, lpi, angle, width, height);
 
             rendering = false;
             downloadButton.disabled = false;
+            canvasTitle.textContent = `Halftoonresultaat (${width}×${height}px, ${lpi} LPI, ${angle}°)`;
         }
 
+        function resetSliders() {
+            sliders.contrast.value = 1.5;
+            values.contrast.textContent = '1.5';
+            sliders.midpoint.value = 0.0;
+            values.midpoint.textContent = '0.00';
 
-        // --- Event Handlers & Init ---
+            eqSliders.forEach(s => s.value = 0.0);
+        }
 
-        /**
-         * Verwerkt het uploaden van de afbeelding.
-         */
-        imageInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
+        // --- Image Loading and Setup ---
+
+        function initializeImage(img) {
+            originalSourceImage = img;
+            errorMessage.classList.add('hidden');
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = img.width;
+            tempCanvas.height = img.height;
+            const tempCtx = tempCanvas.getContext('2d');
+
+            tempCtx.drawImage(img, 0, 0, img.width, img.height);
+            baseImageData = tempCtx.getImageData(0, 0, img.width, img.height);
+            baseImageData = convertToGrayscale(baseImageData);
+
+            placeholderText.style.display = 'none';
+            resultCanvas.style.display = 'block';
+            resultCanvasContainer.classList.remove('drop-target');
+            resultCanvasContainer.style.cursor = 'default';
+            equalizeButton.disabled = false;
+            resetButton.disabled = false;
+            rect = histogramCanvas.getBoundingClientRect();
+
+            resetSliders();
+            renderHalftone();
+        }
+
+        function loadImageFile(file) {
+            if (!file || !file.type.startsWith('image/')) return;
 
             const reader = new FileReader();
             reader.onload = (event) => {
                 const img = new Image();
                 img.onload = () => {
-                    currentImage = img;
-                    errorMessage.classList.add('hidden');
-                    renderHalftone();
+                    initializeImage(img);
                 };
                 img.onerror = () => {
                     errorMessage.textContent = 'Fout bij het laden van de afbeelding. Probeer een ander bestand.';
                     errorMessage.classList.remove('hidden');
-                    currentImage = null;
+                    originalSourceImage = null;
+                    baseImageData = null;
                     downloadButton.disabled = true;
+                    equalizeButton.disabled = true;
+                    resetButton.disabled = true;
+                    placeholderText.style.display = 'flex';
+                    resultCanvas.style.display = 'none';
+                    resultCanvasContainer.classList.add('drop-target');
+                    resultCanvasContainer.style.cursor = 'pointer';
                 };
                 img.src = event.target.result;
             };
             reader.readAsDataURL(file);
+        }
+
+        // --- Histogram Drag Logic (Mouse & Touch) ---
+
+        function getMousePos(evt) {
+            const canvasRect = histogramCanvas.getBoundingClientRect();
+            const clientX = evt.clientX || (evt.touches && evt.touches[0].clientX);
+            const clientY = evt.clientY || (evt.touches && evt.touches[0].clientY);
+
+            const mouseX = clientX - canvasRect.left;
+            const mouseY = clientY - canvasRect.top;
+
+            return { mouseX, mouseY };
+        }
+
+        function onDragStart(evt) {
+            if (!baseImageData) return;
+
+            evt.preventDefault();
+
+            const { mouseX, mouseY } = getMousePos(evt);
+            const curvePoints = getCurvePoints();
+
+            activeEqIndex = -1;
+
+            for (let i = 0; i < curvePoints.length; i++) {
+                const p = curvePoints[i];
+                const canvasRect = histogramCanvas.getBoundingClientRect();
+                const scaleX = canvasRect.width / HIST_WIDTH;
+                const scaledX = EQ_POINTS[i] * scaleX;
+
+                const distanceX = mouseX - scaledX;
+                const distanceY = mouseY - p.y;
+
+                if (Math.abs(distanceX) < HIT_RADIUS && Math.abs(distanceY) < HIT_RADIUS) {
+                    activeEqIndex = i;
+                    histogramCanvas.classList.add('dragging');
+                    break;
+                }
+            }
+        }
+
+        function onDrag(evt) {
+            if (activeEqIndex === -1) return;
+
+            evt.preventDefault();
+
+            const { mouseY } = getMousePos(evt);
+            const canvasRect = histogramCanvas.getBoundingClientRect();
+            const unscaledMouseY = mouseY * (HIST_HEIGHT / canvasRect.height);
+
+            const clampedY = Math.max(0, Math.min(HIST_HEIGHT, unscaledMouseY));
+
+            let eqValue = (HIST_HEIGHT / 2 - clampedY) / HIST_HEIGHT;
+
+            eqValue = Math.max(SLIDER_RANGE_MIN, Math.min(SLIDER_RANGE_MAX, eqValue));
+
+            eqSliders[activeEqIndex].value = eqValue.toFixed(2);
+
+            requestAnimationFrame(renderHalftone);
+        }
+
+        function onDragEnd() {
+            if (activeEqIndex !== -1) {
+                activeEqIndex = -1;
+                histogramCanvas.classList.remove('dragging');
+                requestAnimationFrame(renderHalftone);
+            }
+        }
+
+        // --- Event Handlers ---
+
+        resultCanvasContainer.addEventListener('click', (e) => {
+            if (!originalSourceImage) {
+                imageInput.click();
+            }
         });
 
-        // Koppel de sliders aan de rendering functie en de waarde-updates
+        imageInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                loadImageFile(e.target.files[0]);
+            }
+        });
+
+        resultCanvasContainer.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            resultCanvasContainer.classList.add('drag-over');
+            e.dataTransfer.dropEffect = 'copy';
+        });
+
+        resultCanvasContainer.addEventListener('dragleave', () => {
+            resultCanvasContainer.classList.remove('drag-over');
+        });
+
+        resultCanvasContainer.addEventListener('drop', (e) => {
+            e.preventDefault();
+            resultCanvasContainer.classList.remove('drag-over');
+            if (e.dataTransfer.files.length > 0) {
+                loadImageFile(e.dataTransfer.files[0]);
+            }
+        });
+
         Object.keys(sliders).forEach(key => {
             sliders[key].addEventListener('input', () => {
-                // Formatteer de waardes netjes
-                if (key === 'midpoint' || key === 'gamma' || key === 'contrast') {
-                    values[key].textContent = parseFloat(sliders[key].value).toFixed(2);
-                } else {
-                    values[key].textContent = sliders[key].value;
+                if (values[key]) {
+                    const fixed = key.includes('midpoint') ? 2 : (key === 'frequency' || key === 'angle' ? 0 : 1);
+                    values[key].textContent = parseFloat(sliders[key].value).toFixed(fixed);
                 }
-                if (currentImage) {
-                    // Gebruik requestAnimationFrame voor vloeiender updates
+                if (baseImageData) {
                     requestAnimationFrame(renderHalftone);
                 }
             });
         });
 
-        // Event listener voor de Equalization checkbox
-        equalizeCheckbox.addEventListener('change', () => {
-            if (currentImage) {
-                requestAnimationFrame(renderHalftone);
-            }
+        histogramCanvas.addEventListener('mousedown', onDragStart);
+        histogramCanvas.addEventListener('mousemove', onDrag);
+        histogramCanvas.addEventListener('mouseup', onDragEnd);
+
+        histogramCanvas.addEventListener('touchstart', (e) => onDragStart(e), { passive: false });
+        histogramCanvas.addEventListener('touchmove', (e) => onDrag(e), { passive: false });
+        histogramCanvas.addEventListener('touchend', onDragEnd);
+
+        document.addEventListener('mouseup', onDragEnd);
+        document.addEventListener('touchend', onDragEnd);
+        document.addEventListener('touchcancel', onDragEnd);
+
+        equalizeButton.addEventListener('click', () => {
+            if (!baseImageData || rendering) return;
+
+            let tempImageData = cloneImageData(baseImageData);
+            const contrastFactor = parseFloat(sliders.contrast.value);
+            const midpointShift = parseFloat(sliders.midpoint.value);
+            const eqValues = eqSliders.map(s => s.value);
+            tempImageData = applyTonalAdjustments(tempImageData, contrastFactor, midpointShift, eqValues);
+
+            tempImageData = applyHistogramEqualization(tempImageData);
+
+            baseImageData = tempImageData;
+
+            resetSliders();
+            renderHalftone();
         });
 
+        resetButton.addEventListener('click', () => {
+            if (!originalSourceImage || rendering) return;
+            initializeImage(originalSourceImage);
+        });
 
-        /**
-         * Download de gerasterde afbeelding als een PNG.
-         */
         downloadButton.addEventListener('click', () => {
-            if (halftoneCanvas.width === 0 || halftoneCanvas.height === 0 || downloadButton.disabled) return;
+            if (resultCanvas.width === 0 || resultCanvas.height === 0 || downloadButton.disabled) return;
 
-            const dataURL = halftoneCanvas.toDataURL('image/png');
-            
+            const dataURL = resultCanvas.toDataURL('image/png');
+
             const a = document.createElement('a');
             a.href = dataURL;
-            // Bestandsnaam aanpassen met LPI en hoek
-            let filename = `halftoon_raster_ellips_${sliders.frequency.value}lpi_${sliders.angle.value}deg.png`;
+            let filename = `halftoon_raster_${sliders.frequency.value}lpi_${sliders.angle.value}deg.png`;
 
             a.download = filename;
             document.body.appendChild(a);
@@ -559,19 +909,19 @@
             document.body.removeChild(a);
         });
 
-        // Initiele setup
+        // --- Initiele Setup ---
         document.addEventListener('DOMContentLoaded', () => {
-            // Zorg ervoor dat de canvas leeg is bij de start
-            originalCanvas.width = 300;
-            originalCanvas.height = 300;
-            halftoneCanvas.width = 300;
-            halftoneCanvas.height = 300;
-            originalCanvas.getContext('2d').fillStyle = '#e5e7eb'; 
-            originalCanvas.getContext('2d').fillRect(0, 0, 300, 300);
-            halftoneCanvas.getContext('2d').fillStyle = '#e5e7eb'; 
-            halftoneCanvas.getContext('2d').fillRect(0, 0, 300, 300);
-        });
+            histogramCanvas.width = HIST_WIDTH;
+            histogramCanvas.height = HIST_HEIGHT;
 
+            const histCtx = histogramCanvas.getContext('2d');
+            histCtx.fillStyle = '#e5e7eb';
+            histCtx.fillRect(0, 0, HIST_WIDTH, HIST_HEIGHT);
+            histCtx.fillStyle = '#9ca3af';
+            histCtx.font = '12px "Baloo 2", system-ui, sans-serif';
+            histCtx.textAlign = 'center';
+            histCtx.fillText('Histogram (laad een afbeelding)', HIST_WIDTH / 2, HIST_HEIGHT / 2);
+        });
     </script>
 </body>
 </html>
