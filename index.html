@@ -775,10 +775,13 @@
                 const p = curvePoints[i];
                 const canvasRect = histogramCanvas.getBoundingClientRect();
                 const scaleX = canvasRect.width / HIST_WIDTH;
+                const scaleY = canvasRect.height / HIST_HEIGHT;
+
                 const scaledX = EQ_POINTS[i] * scaleX;
+                const scaledY = p.y * scaleY; // logische y → echte pixels
 
                 const distanceX = mouseX - scaledX;
-                const distanceY = mouseY - p.y;
+                const distanceY = mouseY - scaledY;
 
                 if (Math.abs(distanceX) < HIT_RADIUS && Math.abs(distanceY) < HIT_RADIUS) {
                     activeEqIndex = i;
